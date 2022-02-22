@@ -1,0 +1,50 @@
+{
+  "name": "find-comment",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Find an issue or pull request comment",
+  "main": "lib/main.js",
+  "scripts": {
+    "run": "tsc && ncc build && node dist/index.js",
+    "build": "tsc && ncc build",
+    "format": "prettier --write '**/*.ts'",
+    "format-check": "prettier --check '**/*.ts'",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest --passWithNoTests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peter-evans/find-comment.git"
+  },
+  "keywords": [
+    "actions",
+    "find",
+    "comment"
+  ],
+  "author": "Peter Evans",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/peter-evans/find-comment/issues"
+  },
+  "homepage": "https://github.com/peter-evans/find-comment#readme",
+  "dependencies": {
+    "@actions/core": "^1.6.0",
+    "@actions/github": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.0.3",
+    "@types/node": "^16.11.11",
+    "@typescript-eslint/parser": "^5.5.0",
+    "@vercel/ncc": "^0.32.0",
+    "eslint": "^8.3.0",
+    "eslint-plugin-github": "^4.3.5",
+    "eslint-plugin-jest": "^25.3.0",
+    "jest": "^27.4.3",
+    "jest-circus": "^27.4.2",
+    "js-yaml": "^4.1.0",
+    "prettier": "^2.5.0",
+    "ts-jest": "^27.0.7",
+    "simple-git": "^1.129.0",
+    "typescript": "^4.5.2"
+  }
+}

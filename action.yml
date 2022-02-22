@@ -1,0 +1,33 @@
+name: 'Find links in merge requests'
+description: 'Find all the links in commits from merge requests'
+inputs:
+  token:
+    description: 'GITHUB_TOKEN or a repo scoped PAT.'
+    default: ${{ github.token }}
+  repository:
+    description: 'The full name of the repository containing the issue or pull request.'
+    default: ${{ github.repository }}
+  current-branch:
+    description: 'The current branch that the repo is on'
+    default: HEAD
+  target-branch:
+    description: 'The target/base branch of the PR'
+    default: origin/staging
+  issue-number:
+    description: 'The number of the issue or pull request in which to create a comment.'
+    default: ${{ github.event.pull_request.number }}
+  domain-filters:
+    description: 'Filters for the links to include only certain ones'
+    default: github.com
+  set-links-as-pr-comment:
+    description: 'Flag to set the links found as the body on the PR'
+    default: false
+outputs:
+  links:
+    description: 'The list of links that were found'
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
+branding:
+  icon: 'search'  
+  color: 'gray-dark'
