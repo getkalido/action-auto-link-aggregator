@@ -52,11 +52,11 @@ const promise_1 = __importDefault(__nccwpck_require__(8577));
 function pretty(obj) {
     return (0, util_1.inspect)(obj, { compact: false });
 }
-function filterLink(domainFilters, link) {
+function filterLink(domainFilters, item) {
     if (domainFilters.length == 0)
         return true;
     for (var filter of domainFilters) {
-        if (link.includes(filter)) {
+        if (item.link.includes(filter)) {
             return true;
         }
     }
@@ -70,7 +70,7 @@ function addLinksToPRBody(inputs, links) {
             owner: owner,
             repo: repo,
             issue_number: inputs.issueNumber,
-            body: `Auto collected monday links:\n${links.join("\n")}`,
+            body: `Auto collected monday links:\n${links.map(link => `${link.author}: ${link.link}`).join("\n")}`,
         };
         core.debug(`Update params: ${pretty(parameters)}`);
         var resp = yield octokit.request("PATCH " + octokit.rest.issues.update.endpoint(parameters).url, parameters);
@@ -80,6 +80,7 @@ function addLinksToPRBody(inputs, links) {
 }
 function findBody(inputs, issueNumber) {
     var e_1, _a;
+    var _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
         const octokit = github.getOctokit(inputs.token);
         const [owner, repo] = inputs.repository.split('/');
@@ -90,15 +91,19 @@ function findBody(inputs, issueNumber) {
         };
         const links = [];
         try {
-            for (var _b = __asyncValues(octokit.paginate.iterator(octokit.rest.issues.get, parameters)), _c; _c = yield _b.next(), !_c.done;) {
-                const { data: resp } = _c.value;
+            for (var _d = __asyncValues(octokit.paginate.iterator(octokit.rest.issues.get, parameters)), _e; _e = yield _d.next(), !_e.done;) {
+                const { data: resp } = _e.value;
+                var user = (_c = (_b = resp.user) === null || _b === void 0 ? void 0 : _b.login) !== null && _c !== void 0 ? _c : 'UNKNOWN';
                 var body = resp.body;
                 var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi;
                 var bodyMatch = body === null || body === void 0 ? void 0 : body.match(expression);
                 if (bodyMatch) {
                     for (var match of bodyMatch) {
                         for (var item of match.split("\n")) {
-                            links.push(item);
+                            links.push({
+                                author: user,
+                                link: item,
+                            });
                         }
                     }
                 }
@@ -107,7 +112,7 @@ function findBody(inputs, issueNumber) {
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
         finally {
             try {
-                if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+                if (_e && !_e.done && (_a = _d.return)) yield _a.call(_d);
             }
             finally { if (e_1) throw e_1.error; }
         }
@@ -116,7 +121,7 @@ function findBody(inputs, issueNumber) {
 }
 function findComment(inputs, issueNumber) {
     var e_2, _a;
-    var _b;
+    var _b, _c, _d;
     return __awaiter(this, void 0, void 0, function* () {
         const octokit = github.getOctokit(inputs.token);
         const [owner, repo] = inputs.repository.split('/');
@@ -127,15 +132,19 @@ function findComment(inputs, issueNumber) {
         };
         const links = [];
         try {
-            for (var _c = __asyncValues(octokit.paginate.iterator(octokit.rest.issues.listComments, parameters)), _d; _d = yield _c.next(), !_d.done;) {
-                const { data: comments } = _d.value;
+            for (var _e = __asyncValues(octokit.paginate.iterator(octokit.rest.issues.listComments, parameters)), _f; _f = yield _e.next(), !_f.done;) {
+                const { data: comments } = _f.value;
                 for (var comment of comments) {
                     if (comment) {
+                        var user = (_c = (_b = comment.user) === null || _b === void 0 ? void 0 : _b.login) !== null && _c !== void 0 ? _c : 'UNKNOWN';
                         var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi;
-                        var matches = (_b = comment.body) === null || _b === void 0 ? void 0 : _b.match(expression);
+                        var matches = (_d = comment.body) === null || _d === void 0 ? void 0 : _d.match(expression);
                         if (matches) {
                             for (var match of matches) {
-                                links.push(match);
+                                links.push({
+                                    author: user,
+                                    link: match,
+                                });
                             }
                         }
                     }
@@ -146,7 +155,7 @@ function findComment(inputs, issueNumber) {
         catch (e_2_1) { e_2 = { error: e_2_1 }; }
         finally {
             try {
-                if (_d && !_d.done && (_a = _c.return)) yield _a.call(_c);
+                if (_f && !_f.done && (_a = _e.return)) yield _a.call(_e);
             }
             finally { if (e_2) throw e_2.error; }
         }
@@ -166,6 +175,7 @@ function run() {
                 issueNumber: Number(core.getInput('issue-number')),
                 currentBranch: core.getInput('current-branch'),
                 targetBranch: core.getInput('target-branch'),
+                includeAuthor: Boolean(core.getInput('include-author')),
                 setLinksOnPR: Boolean(core.getInput('set-links-as-pr-comment')),
                 domainFilters: core.getInput('domain-filters').split("|"),
             };
@@ -202,10 +212,12 @@ function run() {
             links = links.filter(onlyUnique);
             core.debug(`Links found: ${pretty(links.length)}`);
             if (links) {
-                core.setOutput('links', links.join("\n"));
+                core.setOutput('links', links.map(it => it.link).join("|"));
+                core.setOutput('authors', links.map(it => it.author).join("|"));
             }
             else {
                 core.setOutput('links', '');
+                core.setOutput('authors', '');
             }
             if (inputs.setLinksOnPR) {
                 addLinksToPRBody(inputs, links);

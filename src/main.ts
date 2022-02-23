@@ -9,30 +9,31 @@ interface Inputs {
   issueNumber: number
   currentBranch: string
   targetBranch: string
+  includeAuthor: boolean
   setLinksOnPR: boolean
   domainFilters: string[]
 }
 
-interface Comment {
-  id: number
-  body?: string
+interface Link {
+  author: string
+  link: string
 }
 
 function pretty(obj: any): string {
   return inspect(obj, { compact: false })
 }
 
-function filterLink(domainFilters: string[], link: String): boolean {
+function filterLink(domainFilters: string[], item: Link): boolean {
   if (domainFilters.length == 0) return true
   for (var filter of domainFilters) {
-    if (link.includes(filter)) {
+    if (item.link.includes(filter)) {
       return true
     }
   }
   return false
 }
 
-async function addLinksToPRBody(inputs: Inputs, links: String[]): Promise<undefined> {
+async function addLinksToPRBody(inputs: Inputs, links: Link[]): Promise<undefined> {
   const octokit = github.getOctokit(inputs.token)
   const [owner, repo] = inputs.repository.split('/')
 
@@ -40,7 +41,7 @@ async function addLinksToPRBody(inputs: Inputs, links: String[]): Promise<undefi
     owner: owner,
     repo: repo,
     issue_number: inputs.issueNumber,
-    body: `Auto collected monday links:\n${links.join("\n")}`,
+    body: `Auto collected monday links:\n${links.map(link => `${link.author}: ${link.link}`).join("\n")}`,
   }
 
   core.debug(`Update params: ${pretty(parameters)}`)
@@ -49,7 +50,7 @@ async function addLinksToPRBody(inputs: Inputs, links: String[]): Promise<undefi
   return
 }
 
-async function findBody(inputs: Inputs, issueNumber: number): Promise<String[] | undefined> {
+async function findBody(inputs: Inputs, issueNumber: number): Promise<Link[] | undefined> {
   const octokit = github.getOctokit(inputs.token)
   const [owner, repo] = inputs.repository.split('/')
 
@@ -59,18 +60,22 @@ async function findBody(inputs: Inputs, issueNumber: number): Promise<String[] |
     issue_number: issueNumber
   }
 
-  const links: string[] = []
+  const links: Link[] = []
   for await (const { data: resp } of octokit.paginate.iterator(
     octokit.rest.issues.get,
     parameters
   )) {
-    var body: String = resp.body
+    var user: string = resp.user?.login ?? 'UNKNOWN'
+    var body: string = resp.body
     var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi
     var bodyMatch = body?.match(expression)
     if (bodyMatch) {
       for (var match of bodyMatch) {
         for (var item of match.split("\n")) {
-          links.push(item)
+          links.push({
+            author: user,
+            link: item,
+          })
         }
       }
     }
@@ -78,7 +83,7 @@ async function findBody(inputs: Inputs, issueNumber: number): Promise<String[] |
   return links.filter(link => filterLink(inputs.domainFilters, link))
 }
 
-async function findComment(inputs: Inputs, issueNumber: number): Promise<String[] | undefined> {
+async function findComment(inputs: Inputs, issueNumber: number): Promise<Link[] | undefined> {
   const octokit = github.getOctokit(inputs.token)
   const [owner, repo] = inputs.repository.split('/')
 
@@ -88,18 +93,22 @@ async function findComment(inputs: Inputs, issueNumber: number): Promise<String[
     issue_number: issueNumber
   }
 
-  const links: string[] = []
+  const links: Link[] = []
   for await (const { data: comments } of octokit.paginate.iterator(
     octokit.rest.issues.listComments,
     parameters
   )) {
     for (var comment of comments) {
       if (comment) {
+        var user: string = comment.user?.login ?? 'UNKNOWN'
         var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi
         var matches = comment.body?.match(expression)
         if (matches) {
           for (var match of matches) {
-            links.push(match)
+            links.push({
+              author: user,
+              link: match,
+            })
           }
         }
       }
@@ -122,6 +131,7 @@ async function run(): Promise<void> {
       issueNumber: Number(core.getInput('issue-number')),
       currentBranch: core.getInput('current-branch'),
       targetBranch: core.getInput('target-branch'),
+      includeAuthor: Boolean(core.getInput('include-author')),
       setLinksOnPR: Boolean(core.getInput('set-links-as-pr-comment')),
       domainFilters: core.getInput('domain-filters').split("|"),
     }
@@ -137,7 +147,7 @@ async function run(): Promise<void> {
     })
     core.debug(`Log count: ${pretty(logs.all.length)}`);
 
-    var links: String[] = []
+    var links: Link[] = []
     for (var log of logs.all) {
       core.debug(`Log: ${log.message}`);
       if (log.message.includes("Merge pull request")) {
@@ -163,9 +173,11 @@ async function run(): Promise<void> {
     core.debug(`Links found: ${pretty(links.length)}`);
 
     if (links) {
-      core.setOutput('links', links.join("\n"))
+      core.setOutput('links', links.map(it => it.link).join("|"))
+      core.setOutput('authors', links.map(it => it.author).join("|"))
     } else {
       core.setOutput('links', '')
+      core.setOutput('authors', '')
     }
 
     if (inputs.setLinksOnPR) {
