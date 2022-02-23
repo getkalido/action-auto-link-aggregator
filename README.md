@@ -11,8 +11,8 @@ Original source based off of https://github.com/peter-evans/find-comment
 ### Find links in comments for the specific domains
 
 ```yml
-      - name: Find Comment
-        uses: getkalido/action-auto-link-aggregator@v1
+      - name: Find links in comment
+        uses: getkalido/action-auto-link-aggregator@main
         id: fc
         with:
           issue-number: 1
@@ -22,8 +22,8 @@ Original source based off of https://github.com/peter-evans/find-comment
 ### Find any links in comments
 
 ```yml
-      - name: Find Comment
-        uses: getkalido/action-auto-link-aggregator@v1
+      - name: Find links in comment
+        uses: getkalido/action-auto-link-aggregator@main
         id: fc
         with:
           issue-number: 1
@@ -32,8 +32,8 @@ Original source based off of https://github.com/peter-evans/find-comment
 ### Find links for domains and update pull request
 
 ```yml
-      - name: Find Comment
-        uses: getkalido/action-auto-link-aggregator@v1
+      - name: Find links in comment
+        uses: getkalido/action-auto-link-aggregator@main
         id: fc
         with:
           issue-number: 1
@@ -58,3 +58,14 @@ Original source based off of https://github.com/peter-evans/find-comment
 The `links` of the comments matchng the domians found will be output for use in later steps.
 They will be empty strings if no matching comment was found.
 Note that in order to read the step outputs the action step must have an id.
+
+```yml
+      - name: Find links in comment
+        uses: getkalido/action-auto-link-aggregator@main
+        id: fc
+        with:
+          issue-number: 1
+          body-includes: search string 1
+      - run: |
+          echo ${{ steps.fc.outputs.links }}
+```
