@@ -55,7 +55,7 @@ Original source based off of https://github.com/peter-evans/find-comment
 
 #### Outputs
 
-The `links` of the comments matchng the domians found will be output for use in later steps.
+The `links` and `authors` of the comments matchng the domians found will be output for use in later steps.
 They will be empty strings if no matching comment was found.
 Note that in order to read the step outputs the action step must have an id.
 
@@ -68,4 +68,5 @@ Note that in order to read the step outputs the action step must have an id.
           body-includes: search string 1
       - run: |
           echo ${{ steps.fc.outputs.links }}
+          echo ${{ steps.fc.outputs.authors }}
 ```
