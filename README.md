@@ -65,7 +65,7 @@ Note that in order to read the step outputs the action step must have an id.
         id: fc
         with:
           issue-number: 1
-          body-includes: search string 1
+          domain-filters: monday.com|github.com
       - run: |
           echo ${{ steps.fc.outputs.links }}
           echo ${{ steps.fc.outputs.authors }}
