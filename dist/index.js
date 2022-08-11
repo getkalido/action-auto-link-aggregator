@@ -246,10 +246,12 @@ function run() {
             }
             const octokit = github.getOctokit(inputs.token);
             const [owner, repo] = inputs.repository.split("/");
+            let base = inputs.targetBranch.replace("origin/", "");
+            let head = inputs.currentBranch.replace("origin/", "");
             const parameters = {
                 owner: owner,
                 repo: repo,
-                basehead: inputs.targetBranch + "..." + inputs.currentBranch,
+                basehead: base + "..." + head,
             };
             var resp = yield octokit.request("GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url);
             var links = [];
