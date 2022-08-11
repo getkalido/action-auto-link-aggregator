@@ -189,7 +189,7 @@ function fetchMondayDetails(inputs, links) {
         }
         try {
             if (ids.length > 0 && inputs.mondayToken != "") {
-                let query = "query { items (ids: [" + ids.join(",") + "]) { id name }}";
+                let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
                 let result = yield axios_1.default.post(`https://api.monday.com/v2`, {
                     query: query,
                 }, {
@@ -205,6 +205,11 @@ function fetchMondayDetails(inputs, links) {
                             for (var link of links) {
                                 if (link.id == data.id) {
                                     link.name = data.name;
+                                    for (var column of data.column_values) {
+                                        if (column.id == "person") {
+                                            link.author = column.text;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -273,7 +278,7 @@ function run() {
             links = links.filter(onlyUnique);
             core.debug(`Links found: ${pretty(links.length)}`);
             if (links) {
-                core.setOutput("links", links);
+                core.setOutput("links", JSON.stringify(links));
             }
             else {
                 core.setOutput("links", []);

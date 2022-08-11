@@ -29,6 +29,12 @@ interface MondayResponse {
       {
         id: string;
         name: string;
+        column_values: [
+          { 
+            id: string;
+            text: string;
+          }
+        ]
       }
     ];
   };
@@ -175,7 +181,7 @@ async function fetchMondayDetails(
   }
   try {
     if (ids.length > 0 && inputs.mondayToken != "") {
-      let query = "query { items (ids: [" + ids.join(",") + "]) { id name }}";
+      let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
 
       let result: AxiosResponse = await axios.post(
         `https://api.monday.com/v2`,
@@ -196,6 +202,11 @@ async function fetchMondayDetails(
             for (var link of links) {
               if (link.id == data.id) {
                 link.name = data.name;
+                for (var column of data.column_values) {
+                  if (column.id == "person") {
+                    link.author = column.text
+                  }
+                }
               }
             }
           }
@@ -268,7 +279,7 @@ async function run(): Promise<void> {
     core.debug(`Links found: ${pretty(links.length)}`);
 
     if (links) {
-      core.setOutput("links", links);
+      core.setOutput("links", JSON.stringify(links));
     } else {
       core.setOutput("links", []);
     }
