@@ -225,15 +225,17 @@ function onlyUnique(value, index, self) {
 
 async function run(): Promise<void> {
   try {
+    core.debug(`CommentOnPRs: ${core.getInput('set-links-as-pr-comment')}`)
+
     const inputs: Inputs = {
       token: core.getInput('token'),
       repository: core.getInput('repository'),
       issueNumber: Number(core.getInput('issue-number')),
       currentBranch: core.getInput('current-branch'),
       targetBranch: core.getInput('target-branch'),
-      includeAuthor: Boolean(core.getInput('include-author')),
+      includeAuthor: core.getBooleanInput('include-author'),
       mondayToken: core.getInput('mondayToken'),
-      setLinksOnPR: Boolean(core.getInput('set-links-as-pr-comment')),
+      setLinksOnPR: core.getBooleanInput('set-links-as-pr-comment'),
       domainFilters: core.getInput('domain-filters').split("|"),
     }
 
