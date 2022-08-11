@@ -1,7 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { inspect } from "util";
-import simplegit from "simple-git";
 import axios, { AxiosResponse } from "axios";
 
 interface Inputs {
@@ -243,19 +242,26 @@ async function run(): Promise<void> {
     if (inputs.targetBranch.length == 0) {
       return;
     }
-    const git = simplegit();
-    const logs = await git.log({
-      from: inputs.currentBranch,
-      to: inputs.targetBranch,
-    });
-    core.debug(`Log count: ${pretty(logs.all.length)}`);
 
+    const octokit = github.getOctokit(inputs.token);
+    const [owner, repo] = inputs.repository.split("/");
+
+    const parameters = {
+      owner: owner,
+      repo: repo,
+      basehead: inputs.targetBranch + "..." + inputs.currentBranch,
+    };
+  
+    var resp = await octokit.request(
+      "GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url,
+    );
+    
     var links: Link[] = [];
-    for (var log of logs.all) {
-      core.debug(`Log: ${log.message}`);
-      if (log.message.includes("Merge pull request")) {
+    for (var log of resp.data.commits) {
+      let message = log.commit.message;
+      if (message.includes("Merge pull request")) {
         var expression = /#(\d*)/gi;
-        var matches = log.message?.match(expression);
+        var matches = message?.match(expression);
         if (matches && matches.length > 0) {
           const issueNumber = Number.parseInt(matches[0].substring(1));
           core.debug(`Checking PR: #${issueNumber}`);

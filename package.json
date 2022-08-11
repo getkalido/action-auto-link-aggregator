@@ -1,8 +1,8 @@
 {
-  "name": "find-comment",
-  "version": "1.0.0",
+  "name": "action-auto-link-aggregator",
+  "version": "2.0.0",
   "private": true,
-  "description": "Find an issue or pull request comment",
+  "description": "Find urls in merged commits for aggregation to a specific pull request",
   "main": "lib/main.js",
   "scripts": {
     "run": "tsc && ncc build && node dist/index.js",
@@ -14,19 +14,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peter-evans/find-comment.git"
+    "url": "git+https://github.com/getkalido/action-auto-link-aggregator.git"
   },
   "keywords": [
     "actions",
     "find",
     "comment"
   ],
-  "author": "Peter Evans",
+  "author": "Kalido",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/peter-evans/find-comment/issues"
+    "url": "https://github.com/getkalido/action-auto-link-aggregator/issues"
   },
-  "homepage": "https://github.com/peter-evans/find-comment#readme",
+  "homepage": "https://github.com/getkalido/action-auto-link-aggregator#readme",
   "dependencies": {
     "@actions/core": "^1.6.0",
     "@actions/github": "^5.0.0",
