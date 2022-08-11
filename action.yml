@@ -22,14 +22,15 @@ inputs:
   include-author:
     description: 'Flag to include the author as part of the links when making the PR comment'
     default: true
+  mondayToken:
+    description: 'MONDAY_TOKEN for access to the monday api to get ticket information'
+    default: 
   set-links-as-pr-comment:
     description: 'Flag to set the links found as the body on the PR'
     default: false
 outputs:
   links:
-    description: 'The list of links that were found'
-  authors:
-    description: 'The list of authors for the links that were found'
+    description: 'The list of links that were found. Data includes the url, author and name of card'
 runs:
   using: 'node12'
   main: 'dist/index.js'

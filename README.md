@@ -56,7 +56,7 @@ Original source based off of https://github.com/peter-evans/find-comment
 #### Outputs
 
 The `links` and `authors` of the comments matchng the domians found will be output for use in later steps.
-They will be empty strings if no matching comment was found.
+They will be an empty list if no matching comment was found.
 Note that in order to read the step outputs the action step must have an id.
 
 ```yml
@@ -68,5 +68,4 @@ Note that in order to read the step outputs the action step must have an id.
           domain-filters: monday.com|github.com
       - run: |
           echo ${{ steps.fc.outputs.links }}
-          echo ${{ steps.fc.outputs.authors }}
 ```
