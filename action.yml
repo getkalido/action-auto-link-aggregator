@@ -9,10 +9,13 @@ inputs:
     default: ${{ github.repository }}
   current-branch:
     description: 'The current branch that the repo is on'
-    default: ${{ github.head_ref || github.ref_name }}
+    default: ${{ github.head_ref || github.ref_name || github.event.after }}
   target-branch:
     description: 'The target/base branch of the PR'
-    default: ${{ github.event.pull_request.base.ref }}
+    default: ${{ github.event.pull_request.base.ref || github.event.before }}
+  from-pr-only:
+    description: 'Flag to indicate if the links should come based on a PR'
+    default: false
   issue-number:
     description: 'The number of the issue or pull request in which to create a comment.'
     default: ${{ github.event.pull_request.number }}

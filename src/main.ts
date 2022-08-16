@@ -6,6 +6,7 @@ import axios, { AxiosResponse } from "axios";
 interface Inputs {
   token: string;
   repository: string;
+  fromPROnly: boolean;
   issueNumber: number;
   currentBranch: string;
   targetBranch: string;
@@ -218,8 +219,8 @@ async function fetchMondayDetails(
   return links;
 }
 
-function onlyUnique(value, index, self) {
-  return self.indexOf(value) === index;
+function onlyUnique(value: Link, index: number, self: Link[]) {
+  return self.findIndex(v => v.id === value.id) === index;
 }
 
 async function run(): Promise<void> {
@@ -229,6 +230,7 @@ async function run(): Promise<void> {
     const inputs: Inputs = {
       token: core.getInput('token'),
       repository: core.getInput('repository'),
+      fromPROnly: core.getBooleanInput('from-pr-only'),
       issueNumber: Number(core.getInput('issue-number')),
       currentBranch: core.getInput('current-branch'),
       targetBranch: core.getInput('target-branch'),
@@ -239,43 +241,59 @@ async function run(): Promise<void> {
     }
 
     core.debug(pretty(inputs));
-    if (inputs.targetBranch.length == 0) {
-      return;
-    }
 
-    const octokit = github.getOctokit(inputs.token);
-    const [owner, repo] = inputs.repository.split("/");
+    var fromPR = inputs.fromPROnly || inputs.currentBranch.length == 0
 
-    let base = inputs.targetBranch.replace("origin/", "")
-    let head = inputs.currentBranch.replace("origin/", "")
-
-    const parameters = {
-      owner: owner,
-      repo: repo,
-      basehead: base + "..." + head,
-    };
-  
-    var resp = await octokit.request(
-      "GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url,
-    );
-    
     var links: Link[] = [];
-    for (var log of resp.data.commits) {
-      let message = log.commit.message;
-      if (message.includes("Merge pull request")) {
-        var expression = /#(\d*)/gi;
-        var matches = message?.match(expression);
-        if (matches && matches.length > 0) {
-          const issueNumber = Number.parseInt(matches[0].substring(1));
-          core.debug(`Checking PR: #${issueNumber}`);
-          var bodyLinks = await findBody(inputs, issueNumber);
-          if (bodyLinks) {
-            links = links?.concat(bodyLinks);
-          }
+    if (fromPR) {
+      core.debug(`Checking PR directly: #${inputs.issueNumber}`);
+      var bodyLinks = await findBody(inputs, inputs.issueNumber);
+      if (bodyLinks) {
+        links = links?.concat(bodyLinks);
+      }
 
-          const commentLinks = await findComment(inputs, issueNumber);
-          if (commentLinks) {
-            links = links?.concat(commentLinks);
+      const commentLinks = await findComment(inputs, inputs.issueNumber);
+      if (commentLinks) {
+        links = links?.concat(commentLinks);
+      }
+    } else {
+      if (inputs.targetBranch.length == 0) {
+        return;
+      }
+
+      const octokit = github.getOctokit(inputs.token);
+      const [owner, repo] = inputs.repository.split("/");
+
+      let base = inputs.targetBranch.replace("origin/", "")
+      let head = inputs.currentBranch.replace("origin/", "")
+
+      const parameters = {
+        owner: owner,
+        repo: repo,
+        basehead: base + "..." + head,
+      };
+    
+      var resp = await octokit.request(
+        "GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url,
+      );
+      
+      for (var log of resp.data.commits) {
+        let message = log.commit.message;
+        if (message.includes("Merge pull request")) {
+          var expression = /#(\d*)/gi;
+          var matches = message?.match(expression);
+          if (matches && matches.length > 0) {
+            const issueNumber = Number.parseInt(matches[0].substring(1));
+            core.debug(`Checking PR: #${issueNumber}`);
+            var bodyLinks = await findBody(inputs, issueNumber);
+            if (bodyLinks) {
+              links = links?.concat(bodyLinks);
+            }
+
+            const commentLinks = await findComment(inputs, issueNumber);
+            if (commentLinks) {
+              links = links?.concat(commentLinks);
+            }
           }
         }
       }
