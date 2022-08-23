@@ -166,7 +166,7 @@ function createLink(inputs, user, url) {
     var expression = /pulses\/(\d*)\/?/gi;
     var matches = url.match(expression);
     let id = "";
-    if (matches && inputs.mondayToken != "") {
+    if (matches) {
         for (var match of matches) {
             id = match.replace("pulses/", "").replace("/", "");
         }
