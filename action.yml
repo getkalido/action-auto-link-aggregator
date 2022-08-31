@@ -34,6 +34,8 @@ inputs:
 outputs:
   links:
     description: 'The list of links that were found. Data includes the url, author and name of card'
+  linksb64:
+    description: 'The list of links that were found in a base64 format'
 runs:
   using: 'node12'
   main: 'dist/index.js'

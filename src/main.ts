@@ -333,8 +333,10 @@ async function run(): Promise<void> {
 
     if (links) {
       core.setOutput("links", JSON.stringify(links));
+      core.setOutput("linksB64", Buffer.from(JSON.stringify(links)).toString("base64"));
     } else {
       core.setOutput("links", []);
+      core.setOutput("linksB64", "");
     }
 
     if (inputs.setLinksOnPR) {
