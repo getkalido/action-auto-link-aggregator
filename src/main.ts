@@ -173,43 +173,67 @@ async function fetchMondayDetails(
   inputs: Inputs,
   links: Link[]
 ): Promise<Link[]> {
-  let ids: string[] = [];
+  let allIDs: string[] = [];
   for (var link of links) {
     if (link.id != "") {
-      ids.push(link.id);
+      allIDs.push(link.id);
     }
   }
   try {
-    if (ids.length > 0 && inputs.mondayToken != "") {
-      let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+    let responseData = {}
+    if (allIDs.length > 0 && inputs.mondayToken != "") {
+      var numberOfObjects = 30 // <-- decides number of objects in each group
+      var groups = allIDs.reduce((acc, elem, index) => {
+        var rowNum = Math.floor(index/numberOfObjects) + 1
+        acc[rowNum] = acc[rowNum] || []
+        acc[rowNum].push(elem)
+        return acc
+      }, {})
+      core.debug(`Fetching in ${Object.keys(groups).length} batches`)
+      for (var row in groups) {
+        let ids = groups[row]
+        let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
 
-      let result: AxiosResponse = await axios.post(
-        `https://api.monday.com/v2`,
-        {
-          query: query,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: inputs.mondayToken,
+        let result: AxiosResponse = await axios.post(
+          `https://api.monday.com/v2`,
+          {
+            query: query,
           },
-        }
-      );
-      if (result.status == 200) {
-        let posts: MondayResponse = result.data;
-        if (posts.data.items.length > 0) {
-          for (let data of posts.data.items) {
-            for (var link of links) {
-              if (link.id == data.id) {
-                link.name = data.name;
-                for (var column of data.column_values) {
-                  if (column.id == "person") {
-                    link.author = column.text
-                  }
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: inputs.mondayToken,
+            },
+          }
+        );
+        if (result.status == 200) {
+          let posts: MondayResponse = result.data;
+          if (posts.data.items.length > 0) {
+            for (let data of posts.data.items) {
+              let item: Link = {
+                id: data.id,
+                name: data.name,
+                author: "",
+                link: "",
+              }
+              for (var column of data.column_values) {
+                if (column.id == "person") {
+                  item.author = column.text
                 }
               }
+              responseData[data.id] = item
             }
           }
+        }
+      }
+
+      for (var link of links) {
+        let data: Link = responseData[link.id]
+        if (data) {
+          link.name = data.name
+          link.author = data.author
+        }  else {
+          core.debug(`No data for ticket: ${JSON.stringify(link)}`)
         }
       }
     }
