@@ -12,7 +12,7 @@ Original source based off of https://github.com/peter-evans/find-comment
 
 ```yml
       - name: Find links in comment
-        uses: getkalido/action-auto-link-aggregator@main
+        uses: getkalido/action-auto-link-aggregator@v2
         id: fc
         with:
           issue-number: 1
@@ -23,7 +23,7 @@ Original source based off of https://github.com/peter-evans/find-comment
 
 ```yml
       - name: Find links in comment
-        uses: getkalido/action-auto-link-aggregator@main
+        uses: getkalido/action-auto-link-aggregator@v2
         id: fc
         with:
           issue-number: 1
@@ -33,7 +33,7 @@ Original source based off of https://github.com/peter-evans/find-comment
 
 ```yml
       - name: Find links in comment
-        uses: getkalido/action-auto-link-aggregator@main
+        uses: getkalido/action-auto-link-aggregator@v2
         id: fc
         with:
           issue-number: 1
@@ -62,7 +62,7 @@ Note that in order to read the step outputs the action step must have an id.
 
 ```yml
       - name: Find links in comment
-        uses: getkalido/action-auto-link-aggregator@main
+        uses: getkalido/action-auto-link-aggregator@v2
         id: fc
         with:
           issue-number: 1
