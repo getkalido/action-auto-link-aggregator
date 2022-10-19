@@ -81,3 +81,9 @@ Link {
   name: string;
 }
 ```
+
+# Contribution
+
+## Setup
+
+Run `npm install` to fetch all the packages needed

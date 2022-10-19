@@ -37,7 +37,7 @@ outputs:
   linksb64:
     description: 'The list of links that were found in a base64 format'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: 'search'  
