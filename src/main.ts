@@ -303,7 +303,7 @@ async function run(): Promise<void> {
       
       for (var log of resp.data.commits) {
         let message = log.commit.message;
-        if (message.includes("Merge pull request")) {
+        if (message.includes("Merge pull request") && !message.includes("/" + base)) {
           var expression = /#(\d*)/gi;
           var matches = message?.match(expression);
           if (matches && matches.length > 0) {
