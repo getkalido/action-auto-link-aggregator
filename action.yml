@@ -9,10 +9,13 @@ inputs:
     default: ${{ github.repository }}
   current-branch:
     description: 'The current branch that the repo is on'
-    default: HEAD
+    default: ${{ github.head_ref || github.ref_name || github.event.after }}
   target-branch:
     description: 'The target/base branch of the PR'
-    default: origin/${{ github.event.pull_request.base.ref }}
+    default: ${{ github.event.pull_request.base.ref || github.event.before }}
+  from-pr-only:
+    description: 'Flag to indicate if the links should come based on a PR'
+    default: false
   issue-number:
     description: 'The number of the issue or pull request in which to create a comment.'
     default: ${{ github.event.pull_request.number }}
@@ -23,7 +26,7 @@ inputs:
     description: 'Flag to include the author as part of the links when making the PR comment'
     default: true
   mondayToken:
-    description: 'MONDAY_TOKEN for access to the monday api to get ticket information'
+    description: 'Monday personal access token for access via monday api to get ticket information'
     default: 
   set-links-as-pr-comment:
     description: 'Flag to set the links found as the body on the PR'
@@ -31,8 +34,10 @@ inputs:
 outputs:
   links:
     description: 'The list of links that were found. Data includes the url, author and name of card'
+  linksb64:
+    description: 'The list of links that were found in a base64 format'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
 branding:
   icon: 'search'  

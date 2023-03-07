@@ -1,12 +1,12 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { inspect } from "util";
-import simplegit from "simple-git";
 import axios, { AxiosResponse } from "axios";
 
 interface Inputs {
   token: string;
   repository: string;
+  fromPROnly: boolean;
   issueNumber: number;
   currentBranch: string;
   targetBranch: string;
@@ -155,7 +155,7 @@ function createLink(inputs: Inputs, user: string, url: string): Link {
   var expression = /pulses\/(\d*)\/?/gi;
   var matches = url.match(expression);
   let id: string = "";
-  if (matches && inputs.mondayToken != "") {
+  if (matches) {
     for (var match of matches) {
       id = match.replace("pulses/", "").replace("/", "");
     }
@@ -173,43 +173,67 @@ async function fetchMondayDetails(
   inputs: Inputs,
   links: Link[]
 ): Promise<Link[]> {
-  let ids: string[] = [];
+  let allIDs: string[] = [];
   for (var link of links) {
     if (link.id != "") {
-      ids.push(link.id);
+      allIDs.push(link.id);
     }
   }
   try {
-    if (ids.length > 0 && inputs.mondayToken != "") {
-      let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+    let responseData = {}
+    if (allIDs.length > 0 && inputs.mondayToken != "") {
+      var numberOfObjects = 30 // <-- decides number of objects in each group
+      var groups = allIDs.reduce((acc, elem, index) => {
+        var rowNum = Math.floor(index/numberOfObjects) + 1
+        acc[rowNum] = acc[rowNum] || []
+        acc[rowNum].push(elem)
+        return acc
+      }, {})
+      core.debug(`Fetching in ${Object.keys(groups).length} batches`)
+      for (var row in groups) {
+        let ids = groups[row]
+        let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
 
-      let result: AxiosResponse = await axios.post(
-        `https://api.monday.com/v2`,
-        {
-          query: query,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: inputs.mondayToken,
+        let result: AxiosResponse = await axios.post(
+          `https://api.monday.com/v2`,
+          {
+            query: query,
           },
-        }
-      );
-      if (result.status == 200) {
-        let posts: MondayResponse = result.data;
-        if (posts.data.items.length > 0) {
-          for (let data of posts.data.items) {
-            for (var link of links) {
-              if (link.id == data.id) {
-                link.name = data.name;
-                for (var column of data.column_values) {
-                  if (column.id == "person") {
-                    link.author = column.text
-                  }
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: inputs.mondayToken,
+            },
+          }
+        );
+        if (result.status == 200) {
+          let posts: MondayResponse = result.data;
+          if (posts.data.items.length > 0) {
+            for (let data of posts.data.items) {
+              let item: Link = {
+                id: data.id,
+                name: data.name,
+                author: "",
+                link: "",
+              }
+              for (var column of data.column_values) {
+                if (column.id == "person") {
+                  item.author = column.text
                 }
               }
+              responseData[data.id] = item
             }
           }
+        }
+      }
+
+      for (var link of links) {
+        let data: Link = responseData[link.id]
+        if (data) {
+          link.name = data.name
+          link.author = data.author
+        }  else {
+          core.debug(`No data for ticket: ${JSON.stringify(link)}`)
         }
       }
     }
@@ -219,8 +243,8 @@ async function fetchMondayDetails(
   return links;
 }
 
-function onlyUnique(value, index, self) {
-  return self.indexOf(value) === index;
+function onlyUnique(value: Link, index: number, self: Link[]) {
+  return self.findIndex(v => v.id === value.id) === index;
 }
 
 async function run(): Promise<void> {
@@ -230,6 +254,7 @@ async function run(): Promise<void> {
     const inputs: Inputs = {
       token: core.getInput('token'),
       repository: core.getInput('repository'),
+      fromPROnly: core.getBooleanInput('from-pr-only'),
       issueNumber: Number(core.getInput('issue-number')),
       currentBranch: core.getInput('current-branch'),
       targetBranch: core.getInput('target-branch'),
@@ -240,33 +265,59 @@ async function run(): Promise<void> {
     }
 
     core.debug(pretty(inputs));
-    if (inputs.targetBranch.length == 0) {
-      return;
-    }
-    const git = simplegit();
-    const logs = await git.log({
-      from: inputs.currentBranch,
-      to: inputs.targetBranch,
-    });
-    core.debug(`Log count: ${pretty(logs.all.length)}`);
+
+    var fromPR = inputs.fromPROnly || inputs.currentBranch.length == 0
 
     var links: Link[] = [];
-    for (var log of logs.all) {
-      core.debug(`Log: ${log.message}`);
-      if (log.message.includes("Merge pull request")) {
-        var expression = /#(\d*)/gi;
-        var matches = log.message?.match(expression);
-        if (matches && matches.length > 0) {
-          const issueNumber = Number.parseInt(matches[0].substring(1));
-          core.debug(`Checking PR: #${issueNumber}`);
-          var bodyLinks = await findBody(inputs, issueNumber);
-          if (bodyLinks) {
-            links = links?.concat(bodyLinks);
-          }
+    if (fromPR) {
+      core.debug(`Checking PR directly: #${inputs.issueNumber}`);
+      var bodyLinks = await findBody(inputs, inputs.issueNumber);
+      if (bodyLinks) {
+        links = links?.concat(bodyLinks);
+      }
 
-          const commentLinks = await findComment(inputs, issueNumber);
-          if (commentLinks) {
-            links = links?.concat(commentLinks);
+      const commentLinks = await findComment(inputs, inputs.issueNumber);
+      if (commentLinks) {
+        links = links?.concat(commentLinks);
+      }
+    } else {
+      if (inputs.targetBranch.length == 0) {
+        return;
+      }
+
+      const octokit = github.getOctokit(inputs.token);
+      const [owner, repo] = inputs.repository.split("/");
+
+      let base = inputs.targetBranch.replace("origin/", "")
+      let head = inputs.currentBranch.replace("origin/", "")
+
+      const parameters = {
+        owner: owner,
+        repo: repo,
+        basehead: base + "..." + head,
+      };
+    
+      var resp = await octokit.request(
+        "GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url,
+      );
+      
+      for (var log of resp.data.commits) {
+        let message = log.commit.message;
+        if (message.includes("Merge pull request") && !message.includes("/" + base)) {
+          var expression = /#(\d*)/gi;
+          var matches = message?.match(expression);
+          if (matches && matches.length > 0) {
+            const issueNumber = Number.parseInt(matches[0].substring(1));
+            core.debug(`Checking PR: #${issueNumber}`);
+            var bodyLinks = await findBody(inputs, issueNumber);
+            if (bodyLinks) {
+              links = links?.concat(bodyLinks);
+            }
+
+            const commentLinks = await findComment(inputs, issueNumber);
+            if (commentLinks) {
+              links = links?.concat(commentLinks);
+            }
           }
         }
       }
@@ -282,8 +333,10 @@ async function run(): Promise<void> {
 
     if (links) {
       core.setOutput("links", JSON.stringify(links));
+      core.setOutput("linksB64", Buffer.from(JSON.stringify(links)).toString("base64"));
     } else {
       core.setOutput("links", []);
+      core.setOutput("linksB64", "");
     }
 
     if (inputs.setLinksOnPR) {
