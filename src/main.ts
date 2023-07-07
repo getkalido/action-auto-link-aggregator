@@ -2,6 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { inspect } from "util";
 import axios, { AxiosResponse } from "axios";
+import { URL } from "url";
 
 interface Inputs {
   token: string;
@@ -12,11 +13,13 @@ interface Inputs {
   targetBranch: string;
   includeAuthor: boolean;
   mondayToken: string;
+  mondayDomainTokens: Map<string, string>;
   setLinksOnPR: boolean;
   domainFilters: string[];
 }
 
 interface Link {
+  domain: string;
   id: string;
   author: string;
   link: string;
@@ -30,7 +33,7 @@ interface MondayResponse {
         id: string;
         name: string;
         column_values: [
-          { 
+          {
             id: string;
             text: string;
           }
@@ -166,6 +169,7 @@ function createLink(inputs: Inputs, user: string, url: string): Link {
     author: user,
     link: url,
     name: "",
+    domain: (new URL(url)).host,
   };
 }
 
@@ -173,67 +177,85 @@ async function fetchMondayDetails(
   inputs: Inputs,
   links: Link[]
 ): Promise<Link[]> {
-  let allIDs: string[] = [];
+  const allDomainIDs: Map<string, string[]> = new Map<string, string[]>()
   for (var link of links) {
-    if (link.id != "") {
-      allIDs.push(link.id);
+    let arr = allDomainIDs.get(link.domain)
+    if (!arr) {
+      arr = []
     }
+
+    if (link.id != "") {
+      arr.push(link.id)
+    }
+    allDomainIDs.set(link.domain, arr);
   }
+
   try {
     let responseData = {}
-    if (allIDs.length > 0 && inputs.mondayToken != "") {
-      var numberOfObjects = 30 // <-- decides number of objects in each group
-      var groups = allIDs.reduce((acc, elem, index) => {
-        var rowNum = Math.floor(index/numberOfObjects) + 1
-        acc[rowNum] = acc[rowNum] || []
-        acc[rowNum].push(elem)
-        return acc
-      }, {})
-      core.debug(`Fetching in ${Object.keys(groups).length} batches`)
-      for (var row in groups) {
-        let ids = groups[row]
-        let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+    core.debug(`Fetching monday: ${allDomainIDs.size} items`);
+    if (allDomainIDs.size > 0 && (inputs.mondayToken != "" || inputs.mondayDomainTokens.size > 0)) {
+      for (let [domain, allIDs] of allDomainIDs) {
+        let mondayToken: string = inputs.mondayDomainTokens.get(domain) || inputs.mondayToken
+        core.debug(`Fetching ${domain} entries using ${mondayToken}`)
 
-        let result: AxiosResponse = await axios.post(
-          `https://api.monday.com/v2`,
-          {
-            query: query,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: inputs.mondayToken,
+
+        var numberOfObjects = 30 // <-- decides number of objects in each group
+        var groups = allIDs.reduce((acc, elem, index) => {
+          var rowNum = Math.floor(index / numberOfObjects) + 1
+          acc[rowNum] = acc[rowNum] || []
+          acc[rowNum].push(elem)
+          return acc
+        }, {})
+        core.debug(`Fetching in ${Object.keys(groups).length} batches`)
+        for (var row in groups) {
+          let ids = groups[row]
+          let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+
+
+          // mondayDomainTokens: Map<String,String>;
+
+          let result: AxiosResponse = await axios.post(
+            `https://api.monday.com/v2`,
+            {
+              query: query,
             },
-          }
-        );
-        if (result.status == 200) {
-          let posts: MondayResponse = result.data;
-          if (posts.data.items.length > 0) {
-            for (let data of posts.data.items) {
-              let item: Link = {
-                id: data.id,
-                name: data.name,
-                author: "",
-                link: "",
-              }
-              for (var column of data.column_values) {
-                if (column.id == "person") {
-                  item.author = column.text
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: mondayToken,
+              },
+            }
+          );
+          if (result.status == 200) {
+            let posts: MondayResponse = result.data;
+            if (posts.data.items.length > 0) {
+              for (let data of posts.data.items) {
+                let item: Link = {
+                  id: data.id,
+                  name: data.name,
+                  author: "",
+                  link: "",
+                  domain: domain,
                 }
+                for (var column of data.column_values) {
+                  if (column.id == "person") {
+                    item.author = column.text
+                  }
+                }
+                responseData[data.id] = item
               }
-              responseData[data.id] = item
             }
           }
         }
-      }
 
-      for (var link of links) {
-        let data: Link = responseData[link.id]
-        if (data) {
-          link.name = data.name
-          link.author = data.author
-        }  else {
-          core.debug(`No data for ticket: ${JSON.stringify(link)}`)
+        for (var link of links) {
+          let data: Link = responseData[link.id]
+          if (data) {
+            link.name = data.name
+            link.author = data.author
+          } else {
+            core.debug(`No data for ticket: ${JSON.stringify(link)}`)
+          }
         }
       }
     }
@@ -251,6 +273,11 @@ async function run(): Promise<void> {
   try {
     core.debug(`CommentOnPRs: ${core.getInput('set-links-as-pr-comment')}`)
 
+    const tokenMap = new Map<string, string>();
+    core.getInput('mondayDomainTokens').split(",").map((n) => {
+      const data = n.split("|")
+      tokenMap.set(data[0], data[1])
+    })
     const inputs: Inputs = {
       token: core.getInput('token'),
       repository: core.getInput('repository'),
@@ -260,11 +287,13 @@ async function run(): Promise<void> {
       targetBranch: core.getInput('target-branch'),
       includeAuthor: core.getBooleanInput('include-author'),
       mondayToken: core.getInput('mondayToken'),
+      mondayDomainTokens: tokenMap,
       setLinksOnPR: core.getBooleanInput('set-links-as-pr-comment'),
       domainFilters: core.getInput('domain-filters').split("|"),
     }
 
     core.debug(pretty(inputs));
+    core.debug("")
 
     var fromPR = inputs.fromPROnly || inputs.currentBranch.length == 0
 
@@ -296,11 +325,11 @@ async function run(): Promise<void> {
         repo: repo,
         basehead: base + "..." + head,
       };
-    
+
       var resp = await octokit.request(
         "GET " + octokit.rest.repos.compareCommitsWithBasehead.endpoint(parameters).url,
       );
-      
+
       for (var log of resp.data.commits) {
         let message = log.commit.message;
         if (message.includes("Merge pull request") && !message.includes("/" + base)) {
@@ -323,7 +352,7 @@ async function run(): Promise<void> {
       }
     }
 
-    if (inputs.mondayToken != "") {
+    if (inputs.mondayToken != "" || inputs.mondayDomainTokens.size > 0) {
       core.debug(`Fetching monday.com details`);
       links = await fetchMondayDetails(inputs, links);
     }

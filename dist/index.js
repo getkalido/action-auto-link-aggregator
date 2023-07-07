@@ -53,6 +53,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const util_1 = __nccwpck_require__(3837);
 const axios_1 = __importDefault(__nccwpck_require__(6545));
+const url_1 = __nccwpck_require__(7310);
 function pretty(obj) {
     return (0, util_1.inspect)(obj, { compact: false });
 }
@@ -176,66 +177,79 @@ function createLink(inputs, user, url) {
         author: user,
         link: url,
         name: "",
+        domain: (new url_1.URL(url)).host,
     };
 }
 function fetchMondayDetails(inputs, links) {
     return __awaiter(this, void 0, void 0, function* () {
-        let allIDs = [];
+        const allDomainIDs = new Map();
         for (var link of links) {
-            if (link.id != "") {
-                allIDs.push(link.id);
+            let arr = allDomainIDs.get(link.domain);
+            if (!arr) {
+                arr = [];
             }
+            if (link.id != "") {
+                arr.push(link.id);
+            }
+            allDomainIDs.set(link.domain, arr);
         }
         try {
             let responseData = {};
-            if (allIDs.length > 0 && inputs.mondayToken != "") {
-                var numberOfObjects = 30; // <-- decides number of objects in each group
-                var groups = allIDs.reduce((acc, elem, index) => {
-                    var rowNum = Math.floor(index / numberOfObjects) + 1;
-                    acc[rowNum] = acc[rowNum] || [];
-                    acc[rowNum].push(elem);
-                    return acc;
-                }, {});
-                core.debug(`Fetching in ${Object.keys(groups).length} batches`);
-                for (var row in groups) {
-                    let ids = groups[row];
-                    let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
-                    let result = yield axios_1.default.post(`https://api.monday.com/v2`, {
-                        query: query,
-                    }, {
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: inputs.mondayToken,
-                        },
-                    });
-                    if (result.status == 200) {
-                        let posts = result.data;
-                        if (posts.data.items.length > 0) {
-                            for (let data of posts.data.items) {
-                                let item = {
-                                    id: data.id,
-                                    name: data.name,
-                                    author: "",
-                                    link: "",
-                                };
-                                for (var column of data.column_values) {
-                                    if (column.id == "person") {
-                                        item.author = column.text;
+            core.debug(`Fetching monday: ${allDomainIDs.size} items`);
+            if (allDomainIDs.size > 0 && (inputs.mondayToken != "" || inputs.mondayDomainTokens.size > 0)) {
+                for (let [domain, allIDs] of allDomainIDs) {
+                    let mondayToken = inputs.mondayDomainTokens.get(domain) || inputs.mondayToken;
+                    core.debug(`Fetching ${domain} entries using ${mondayToken}`);
+                    var numberOfObjects = 30; // <-- decides number of objects in each group
+                    var groups = allIDs.reduce((acc, elem, index) => {
+                        var rowNum = Math.floor(index / numberOfObjects) + 1;
+                        acc[rowNum] = acc[rowNum] || [];
+                        acc[rowNum].push(elem);
+                        return acc;
+                    }, {});
+                    core.debug(`Fetching in ${Object.keys(groups).length} batches`);
+                    for (var row in groups) {
+                        let ids = groups[row];
+                        let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+                        // mondayDomainTokens: Map<String,String>;
+                        let result = yield axios_1.default.post(`https://api.monday.com/v2`, {
+                            query: query,
+                        }, {
+                            headers: {
+                                "Content-Type": "application/json",
+                                Authorization: mondayToken,
+                            },
+                        });
+                        if (result.status == 200) {
+                            let posts = result.data;
+                            if (posts.data.items.length > 0) {
+                                for (let data of posts.data.items) {
+                                    let item = {
+                                        id: data.id,
+                                        name: data.name,
+                                        author: "",
+                                        link: "",
+                                        domain: domain,
+                                    };
+                                    for (var column of data.column_values) {
+                                        if (column.id == "person") {
+                                            item.author = column.text;
+                                        }
                                     }
+                                    responseData[data.id] = item;
                                 }
-                                responseData[data.id] = item;
                             }
                         }
                     }
-                }
-                for (var link of links) {
-                    let data = responseData[link.id];
-                    if (data) {
-                        link.name = data.name;
-                        link.author = data.author;
-                    }
-                    else {
-                        core.debug(`No data for ticket: ${JSON.stringify(link)}`);
+                    for (var link of links) {
+                        let data = responseData[link.id];
+                        if (data) {
+                            link.name = data.name;
+                            link.author = data.author;
+                        }
+                        else {
+                            core.debug(`No data for ticket: ${JSON.stringify(link)}`);
+                        }
                     }
                 }
             }
@@ -253,6 +267,11 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             core.debug(`CommentOnPRs: ${core.getInput('set-links-as-pr-comment')}`);
+            const tokenMap = new Map();
+            core.getInput('mondayDomainTokens').split(",").map((n) => {
+                const data = n.split("|");
+                tokenMap.set(data[0], data[1]);
+            });
             const inputs = {
                 token: core.getInput('token'),
                 repository: core.getInput('repository'),
@@ -262,10 +281,12 @@ function run() {
                 targetBranch: core.getInput('target-branch'),
                 includeAuthor: core.getBooleanInput('include-author'),
                 mondayToken: core.getInput('mondayToken'),
+                mondayDomainTokens: tokenMap,
                 setLinksOnPR: core.getBooleanInput('set-links-as-pr-comment'),
                 domainFilters: core.getInput('domain-filters').split("|"),
             };
             core.debug(pretty(inputs));
+            core.debug("");
             var fromPR = inputs.fromPROnly || inputs.currentBranch.length == 0;
             var links = [];
             if (fromPR) {
@@ -313,7 +334,7 @@ function run() {
                     }
                 }
             }
-            if (inputs.mondayToken != "") {
+            if (inputs.mondayToken != "" || inputs.mondayDomainTokens.size > 0) {
                 core.debug(`Fetching monday.com details`);
                 links = yield fetchMondayDetails(inputs, links);
             }
@@ -481,6 +502,7 @@ const file_command_1 = __nccwpck_require__(717);
 const utils_1 = __nccwpck_require__(5278);
 const os = __importStar(__nccwpck_require__(2037));
 const path = __importStar(__nccwpck_require__(1017));
+const uuid_1 = __nccwpck_require__(5840);
 const oidc_utils_1 = __nccwpck_require__(8041);
 /**
  * The code to exit an action
@@ -510,9 +532,20 @@ function exportVariable(name, val) {
     process.env[name] = convertedVal;
     const filePath = process.env['GITHUB_ENV'] || '';
     if (filePath) {
-        return file_command_1.issueFileCommand('ENV', file_command_1.prepareKeyValueMessage(name, val));
+        const delimiter = `ghadelimiter_${uuid_1.v4()}`;
+        // These should realistically never happen, but just in case someone finds a way to exploit uuid generation let's not allow keys or values that contain the delimiter.
+        if (name.includes(delimiter)) {
+            throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
+        }
+        if (convertedVal.includes(delimiter)) {
+            throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
+        }
+        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
+        file_command_1.issueCommand('ENV', commandValue);
     }
-    command_1.issueCommand('set-env', { name }, convertedVal);
+    else {
+        command_1.issueCommand('set-env', { name }, convertedVal);
+    }
 }
 exports.exportVariable = exportVariable;
 /**
@@ -530,7 +563,7 @@ exports.setSecret = setSecret;
 function addPath(inputPath) {
     const filePath = process.env['GITHUB_PATH'] || '';
     if (filePath) {
-        file_command_1.issueFileCommand('PATH', inputPath);
+        file_command_1.issueCommand('PATH', inputPath);
     }
     else {
         command_1.issueCommand('add-path', {}, inputPath);
@@ -570,10 +603,7 @@ function getMultilineInput(name, options) {
     const inputs = getInput(name, options)
         .split('\n')
         .filter(x => x !== '');
-    if (options && options.trimWhitespace === false) {
-        return inputs;
-    }
-    return inputs.map(input => input.trim());
+    return inputs;
 }
 exports.getMultilineInput = getMultilineInput;
 /**
@@ -606,12 +636,8 @@ exports.getBooleanInput = getBooleanInput;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setOutput(name, value) {
-    const filePath = process.env['GITHUB_OUTPUT'] || '';
-    if (filePath) {
-        return file_command_1.issueFileCommand('OUTPUT', file_command_1.prepareKeyValueMessage(name, value));
-    }
     process.stdout.write(os.EOL);
-    command_1.issueCommand('set-output', { name }, utils_1.toCommandValue(value));
+    command_1.issueCommand('set-output', { name }, value);
 }
 exports.setOutput = setOutput;
 /**
@@ -740,11 +766,7 @@ exports.group = group;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function saveState(name, value) {
-    const filePath = process.env['GITHUB_STATE'] || '';
-    if (filePath) {
-        return file_command_1.issueFileCommand('STATE', file_command_1.prepareKeyValueMessage(name, value));
-    }
-    command_1.issueCommand('save-state', { name }, utils_1.toCommandValue(value));
+    command_1.issueCommand('save-state', { name }, value);
 }
 exports.saveState = saveState;
 /**
@@ -810,14 +832,13 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.prepareKeyValueMessage = exports.issueFileCommand = void 0;
+exports.issueCommand = void 0;
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const fs = __importStar(__nccwpck_require__(7147));
 const os = __importStar(__nccwpck_require__(2037));
-const uuid_1 = __nccwpck_require__(5840);
 const utils_1 = __nccwpck_require__(5278);
-function issueFileCommand(command, message) {
+function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
     if (!filePath) {
         throw new Error(`Unable to find environment variable for file command ${command}`);
@@ -829,22 +850,7 @@ function issueFileCommand(command, message) {
         encoding: 'utf8'
     });
 }
-exports.issueFileCommand = issueFileCommand;
-function prepareKeyValueMessage(key, value) {
-    const delimiter = `ghadelimiter_${uuid_1.v4()}`;
-    const convertedValue = utils_1.toCommandValue(value);
-    // These should realistically never happen, but just in case someone finds a
-    // way to exploit uuid generation let's not allow keys or values that contain
-    // the delimiter.
-    if (key.includes(delimiter)) {
-        throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
-    }
-    if (convertedValue.includes(delimiter)) {
-        throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
-    }
-    return `${key}<<${delimiter}${os.EOL}${convertedValue}${os.EOL}${delimiter}`;
-}
-exports.prepareKeyValueMessage = prepareKeyValueMessage;
+exports.issueCommand = issueCommand;
 //# sourceMappingURL=file-command.js.map
 
 /***/ }),
@@ -2067,6 +2073,10 @@ function checkBypass(reqUrl) {
     if (!reqUrl.hostname) {
         return false;
     }
+    const reqHost = reqUrl.hostname;
+    if (isLoopbackAddress(reqHost)) {
+        return true;
+    }
     const noProxy = process.env['no_proxy'] || process.env['NO_PROXY'] || '';
     if (!noProxy) {
         return false;
@@ -2092,13 +2102,24 @@ function checkBypass(reqUrl) {
         .split(',')
         .map(x => x.trim().toUpperCase())
         .filter(x => x)) {
-        if (upperReqHosts.some(x => x === upperNoProxyItem)) {
+        if (upperNoProxyItem === '*' ||
+            upperReqHosts.some(x => x === upperNoProxyItem ||
+                x.endsWith(`.${upperNoProxyItem}`) ||
+                (upperNoProxyItem.startsWith('.') &&
+                    x.endsWith(`${upperNoProxyItem}`)))) {
             return true;
         }
     }
     return false;
 }
 exports.checkBypass = checkBypass;
+function isLoopbackAddress(host) {
+    const hostLower = host.toLowerCase();
+    return (hostLower === 'localhost' ||
+        hostLower.startsWith('127.') ||
+        hostLower.startsWith('[::1]') ||
+        hostLower.startsWith('[0:0:0:0:0:0:0:1]'));
+}
 //# sourceMappingURL=proxy.js.map
 
 /***/ }),
