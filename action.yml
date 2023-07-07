@@ -28,6 +28,9 @@ inputs:
   mondayToken:
     description: 'Monday personal access token for access via monday api to get ticket information'
     default: 
+  mondayDomainTokens:
+    description: 'Monday personal access tokens for access via monday api to get ticket information based on domain. Comma sepeated and | separated between key value pairs'
+    default: 
   set-links-as-pr-comment:
     description: 'Flag to set the links found as the body on the PR'
     default: false
