@@ -238,7 +238,7 @@ async function fetchMondayDetails(
                   domain: domain,
                 }
                 for (var column of data.column_values) {
-                  if (column.id == "person") {
+                  if (column.id == "person" || column.id == "task_owner") {
                     item.author = column.text
                   }
                 }
@@ -252,7 +252,9 @@ async function fetchMondayDetails(
           let data: Link = responseData[link.id]
           if (data) {
             link.name = data.name
-            link.author = data.author
+            if (data.author) {
+              link.author = data.author
+            }
           } else {
             core.debug(`No data for ticket: ${JSON.stringify(link)}`)
           }
