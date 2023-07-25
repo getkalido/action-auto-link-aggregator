@@ -102,7 +102,7 @@ async function findBody(
     parameters
   )) {
     var user: string = resp.user?.login ?? "UNKNOWN";
-    var body: string = resp.body;
+    var body: string = resp.body ?? "";
     var expression =
       /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi;
     var bodyMatch = body?.match(expression);
