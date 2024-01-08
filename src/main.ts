@@ -221,6 +221,7 @@ async function fetchMondayDetails(
             },
             {
               headers: {
+                "API-Version": "2024-01",
                 "Content-Type": "application/json",
                 Authorization: mondayToken,
               },
