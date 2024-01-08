@@ -209,7 +209,7 @@ async function fetchMondayDetails(
         core.debug(`Fetching in ${Object.keys(groups).length} batches`)
         for (var row in groups) {
           let ids = groups[row]
-          let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
+          let query = "query { items_page (limit: "+numberOfObjects+", query_params: {ids: [" + ids.join(",") + "]}) { id name column_values { id text }  }}";
 
 
           // mondayDomainTokens: Map<String,String>;
@@ -221,6 +221,7 @@ async function fetchMondayDetails(
             },
             {
               headers: {
+                "API-Version": "2024-01",
                 "Content-Type": "application/json",
                 Authorization: mondayToken,
               },
