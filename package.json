@@ -1,6 +1,9 @@
 {
   "name": "action-auto-link-aggregator",
   "version": "2.0.0",
+  "engines": {
+    "node": ">= 20"
+  },
   "private": true,
   "description": "Find urls in merged commits for aggregation to a specific pull request",
   "main": "lib/main.js",
