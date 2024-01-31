@@ -1,0 +1,54 @@
+{
+  "name": "action-auto-link-aggregator",
+  "version": "2.0.0",
+  "engines": {
+    "node": ">= 20"
+  },
+  "private": true,
+  "description": "Find urls in merged commits for aggregation to a specific pull request",
+  "main": "lib/main.js",
+  "scripts": {
+    "run": "tsc && ncc build && node dist/index.js",
+    "build": "tsc && ncc build",
+    "format": "prettier --write '**/*.ts'",
+    "format-check": "prettier --check '**/*.ts'",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest --passWithNoTests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getkalido/action-auto-link-aggregator.git"
+  },
+  "keywords": [
+    "actions",
+    "find",
+    "comment"
+  ],
+  "author": "Kalido",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/getkalido/action-auto-link-aggregator/issues"
+  },
+  "homepage": "https://github.com/getkalido/action-auto-link-aggregator#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
+    "@types/axios": "^0.14.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.39",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@vercel/ncc": "^0.32.0",
+    "eslint": "^8.45.0",
+    "eslint-plugin-github": "^4.9.2",
+    "eslint-plugin-jest": "^25.7.0",
+    "jest": "^27.5.1",
+    "jest-circus": "^27.5.1",
+    "js-yaml": "^4.1.0",
+    "prettier": "^2.8.8",
+    "simple-git": "^3.19.1",
+    "ts-jest": "^27.1.5",
+    "typescript": "^4.9.5"
+  }
+}
