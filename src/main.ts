@@ -214,38 +214,42 @@ async function fetchMondayDetails(
 
           // mondayDomainTokens: Map<String,String>;
 
-          let result: AxiosResponse = await axios.post(
-            `https://api.monday.com/v2`,
-            {
-              query: query,
-            },
-            {
-              headers: {
-                "API-Version": "2024-01",
-                "Content-Type": "application/json",
-                Authorization: mondayToken,
+          try {
+            let result: AxiosResponse = await axios.post(
+              `https://api.monday.com/v2`,
+              {
+                query: query,
               },
-            }
-          );
-          if (result.status == 200) {
-            let posts: MondayResponse = result.data;
-            if (posts.data.items.length > 0) {
-              for (let data of posts.data.items) {
-                let item: Link = {
-                  id: data.id,
-                  name: data.name,
-                  author: "",
-                  link: "",
-                  domain: domain,
-                }
-                for (var column of data.column_values) {
-                  if (column.id == "person" || column.id == "task_owner") {
-                    item.author = column.text
+              {
+                headers: {
+                  "API-Version": "2024-01",
+                  "Content-Type": "application/json",
+                  Authorization: mondayToken,
+                },
+              }
+            );
+            if (result.status == 200) {
+              let posts: MondayResponse = result.data;
+              if (posts.data.items.length > 0) {
+                for (let data of posts.data.items) {
+                  let item: Link = {
+                    id: data.id,
+                    name: data.name,
+                    author: "",
+                    link: "",
+                    domain: domain,
                   }
+                  for (var column of data.column_values) {
+                    if (column.id == "person" || column.id == "task_owner") {
+                      item.author = column.text
+                    }
+                  }
+                  responseData[data.id] = item
                 }
-                responseData[data.id] = item
               }
             }
+          } catch (err) {
+            core.error(`Error fetching monday details for (${ids.join(",")}): ${err}`);
           }
         }
 
