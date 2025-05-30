@@ -196,7 +196,7 @@ async function fetchMondayDetails(
     if (allDomainIDs.size > 0 && (inputs.mondayToken != "" || inputs.mondayDomainTokens.size > 0)) {
       for (let [domain, allIDs] of allDomainIDs) {
         let mondayToken: string = inputs.mondayDomainTokens.get(domain) || inputs.mondayToken
-        core.debug(`Fetching ${domain} entries using ${mondayToken}`)
+        core.debug(`Fetching ${domain} entries using '${mondayToken}'`)
 
 
         var numberOfObjects = 30 // <-- decides number of objects in each group
@@ -210,9 +210,6 @@ async function fetchMondayDetails(
         for (var row in groups) {
           let ids = groups[row]
           let query = "query { items (ids: [" + ids.join(",") + "]) { id name column_values { id text }  }}";
-
-
-          // mondayDomainTokens: Map<String,String>;
 
           try {
             let result: AxiosResponse = await axios.post(
@@ -283,7 +280,9 @@ async function run(): Promise<void> {
     const tokenMap = new Map<string, string>();
     core.getInput('mondayDomainTokens').split(",").map((n) => {
       const data = n.split("|")
-      tokenMap.set(data[0], data[1])
+      if (data[0] && data[1]) {
+        tokenMap.set(data[0], data[1])
+      }
     })
     const inputs: Inputs = {
       token: core.getInput('token'),
@@ -339,7 +338,8 @@ async function run(): Promise<void> {
 
       for (var log of resp.data.commits) {
         let message = log.commit.message;
-        if (message.includes("Merge pull request") && !message.includes("/" + base)) {
+        core.debug(`Checking commit: ${log.sha} - ${message}`);
+        if ((message.includes("Merge pull request") || message.includes("(#")) && !message.includes("/" + base)) {
           var expression = /#(\d*)/gi;
           var matches = message?.match(expression);
           if (matches && matches.length > 0) {
