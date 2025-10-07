@@ -1,0 +1,38 @@
+name: Test build
+
+on:
+  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Find links in comments
+        id: check
+        uses: ./
+        with:
+          from-pr-only: true
+          issue-number: 1
+          set-links-as-pr-comment: false
+
+      - name: Verify output
+        run: |
+          echo ${{ steps.check.outputs.links }}
+          echo ${{ steps.check.outputs.linksb64 }}
+
+          if [[ "${{ steps.check.outputs.linksb64 }}" == "" ]]
+          then              
+            exit 1
+          fi
+
+          if [[ "${{ steps.check.outputs.linksb64 }}" != "${{ vars.EXPECTED_OUTPUT }}" ]]
+          then              
+            exit 2
+          fi
